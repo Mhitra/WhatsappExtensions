@@ -10,7 +10,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.XModuleResources;
-import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
@@ -85,6 +84,12 @@ public class ExtModule implements IXposedHookLoadPackage, IXposedHookZygoteInit,
     private static HashSet<String> highlightedChats;
     private static HashSet<String> whitelistSet;
     private static HashSet<String> blockContactsSet;
+
+    // Mhitra Mod
+    private static HashSet<String> allContacts;
+    private static boolean archiveFieldSet = false;
+    private static boolean readContacts = true;
+    private static boolean blockNoListContacts = false;
 
     private static HashMap<View, View> processedViewsHashMap;
     private static HashMap<View, View> zerothChildrenHashMap;
@@ -899,41 +904,31 @@ public class ExtModule implements IXposedHookLoadPackage, IXposedHookZygoteInit,
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 super.beforeHookedMethod(param);
-/*
-                String number = param.args[0].toString().split("@")[0];
-
-                if(blockContacts && blockContactsSet.contains(number))
-                    param.setResult(null);
-*/
             }
 
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 super.afterHookedMethod(param);
-                if (param.args[0] == null) {
+                
+                if (param.args == null || param.args[0] == null || param.getResult() == null) {
                     return;
                 }
 
-                if (param.getResult() == null) {
+                // Return if not a WhatsApp number
+                if (!param.args[0].toString().contains("@") || !param.args[0].toString().contains("whatsapp")) {
                     return;
                 }
 
-                if (exceptionThrown) {
-                    Pattern pattern = Pattern.compile("[0-9]+[\\-]*[0-9]*");
-                    Matcher matcher = pattern.matcher(param.args[0].toString().split("@")[0]);
-
-                    if (matcher.matches()) {
-                        archiveClass = param.getResult().getClass();
-
-                        for (Field field : archiveClass.getDeclaredFields()) {
-                            if (field.getType().getName().equals("boolean")) {
-                                archiveBooleanFieldName = field.getName();
-                                exceptionThrown = false;
-                                break;
-                            }
+                // Mhitra Mod
+                if(!archiveFieldSet){
+                    archiveClass = param.getResult().getClass();
+                    for (Field field : archiveClass.getDeclaredFields()) {
+                        if (field.getType().getName().equals("boolean")) {
+                            archiveBooleanFieldName = field.getName();
+                            // XposedBridge.log("Archived boolean field: " + archiveBooleanFieldName);
+                            archiveFieldSet = true;
+                            break;
                         }
-                    } else {
-                        return;
                     }
                 }
 
@@ -943,8 +938,22 @@ public class ExtModule implements IXposedHookLoadPackage, IXposedHookZygoteInit,
 
                 String number = param.args[0].toString().split("@")[0];
 
-                if (!hiddenGroups.contains(number))
+                // Mhitra Mod
+                if (blockNoListContacts) {
+                    if (!allContacts.contains(number) && !hiddenGroups.contains(number)) {
+                        //XposedBridge.log("*** WhatsApp BLOCK Number: " + number + " ***");
+                        hiddenGroups.add(number);
+                        Intent intent = new Intent();
+                        intent.setComponent(new ComponentName(ExtModule.PACKAGE_NAME, "com.suraj.waext.LockPreferencesService"));
+                        intent.putExtra("action", 1);
+                        intent.putExtra(ExtModule.HIDDEN_GROUPS_PREF_STRING, hiddenGroups);
+                        AndroidAppHelper.currentApplication().startService(intent);
+                    }
+                }
+
+                if (!hiddenGroups.contains(number)){
                     return;
+                }
 
                 Field f = param.getResult().getClass().getDeclaredField(archiveBooleanFieldName);
                 f.setAccessible(true);
@@ -1304,6 +1313,25 @@ public class ExtModule implements IXposedHookLoadPackage, IXposedHookZygoteInit,
     public void initPrefs() {
         sharedPreferences.reload();
         sharedPreferences.makeWorldReadable();
+
+        // Mhitra Mod
+        blockNoListContacts = sharedPreferences.getBoolean("blockNoListContacts", false);
+        if (allContacts == null) {
+            allContacts = new HashSet<String>();
+            if (readContacts) {
+                String db = "/data/data/com.whatsapp/databases/wa.db";
+                String sql = "select jid from wa_contacts";
+                String[] whatsappContacts = WhatsAppDatabaseHelper.execSQL(db, sql);
+                if (whatsappContacts != null) {
+                    for (int i = 0; i < whatsappContacts.length; i++) {
+                        String whatsappContactNumber = whatsappContacts[i].split("@")[0];
+                        //XposedBridge.log("*** whatsappContactNumber: " + whatsappContactNumber + " ***");
+                        allContacts.add(whatsappContactNumber);
+                        readContacts = false;
+                    }
+                }
+            }
+        }
 
         lockedContacts = (HashSet<String>) sharedPreferences.getStringSet(ExtModule.LOCKED_CONTACTS_PREF_STRING, new HashSet<String>());
         highlightedChats = (HashSet<String>) sharedPreferences.getStringSet(ExtModule.HIGHLIGHTED_CHATS_PREF_STRING, new HashSet<String>());

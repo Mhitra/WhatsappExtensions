@@ -132,6 +132,16 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        // Mhitra Mod
+        final CheckBox checkBoxBlockedNoListContacts = (CheckBox) findViewById(R.id.chkboxBlockNoListContacts);
+        checkBoxBlockedNoListContacts.setChecked(sharedPreferences.getBoolean("blockNoListContacts", false));
+        checkBoxBlockedNoListContacts.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                editor.putBoolean("blockNoListContacts", checkBoxBlockedNoListContacts.isChecked());
+                editor.apply();
+            }
+        });
 
     }
 

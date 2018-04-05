@@ -26,3 +26,10 @@ git clone https://<span></span>github.com/suraj0208/WhatsappExtensions.git
 join the discussion:
 
 http://forum.xda-developers.com/xposed/modules/mod-whatsapp-extensions-add-extra-t3452784
+
+
+## Edit files for Mhitra Mod (Hide all messages from no list contacts)
+
+./src/main/java/com/suraj/waext/ExtModule.java
+./src/main/java/com/suraj/waext/MainActivity.java
+./src/main/res/layout/content_main.xml
